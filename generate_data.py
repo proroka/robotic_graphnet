@@ -56,8 +56,8 @@ def main(args):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Generates random graph')
   parser.add_argument('--output_file', action='store', required=True, help='Path where the json file is stored')
-  parser.add_argument('--min_nodes', type=int, action='store', default=8, help='Minimum number of nodes')
-  parser.add_argument('--max_nodes', type=int, action='store', default=10, help='Maximum number of nodes')
-  parser.add_argument('--n_graphs', type=int, action='store', default=10000, help='Number of graphs')
+  parser.add_argument('--min_nodes', type=int, action='store', default=9, help='Minimum number of nodes')
+  parser.add_argument('--max_nodes', type=int, action='store', default=11, help='Maximum number of nodes')
+  parser.add_argument('--n_graphs', type=int, action='store', default=100000, help='Number of graphs')
   args = parser.parse_args()
   main(args)
