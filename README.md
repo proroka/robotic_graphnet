@@ -1,5 +1,7 @@
 # Robotic GraphNets
 
+Adapted from https://github.com/Microsoft/gated-graph-neural-network-samples
+
 Example of commands:
 ```bash
 python generate_data.py --output_file=data/eval8_10.json --n_graphs=100000 --min_nodes=8 --max_nodes=10
