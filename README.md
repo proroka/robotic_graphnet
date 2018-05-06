@@ -6,7 +6,7 @@ Example of commands:
 ```bash
 python generate_data.py --output_file=data/train9_11.json --n_graphs=100000 --min_nodes=9 --max_nodes=11
 python generate_data.py --output_file=data/eval9_11.json --n_graphs=10000 --min_nodes=9 --max_nodes=11
-python graphnet_dense.py --train_file=train9_11.json --valid_file=eval9_11.json --num_epochs=5
+python graphnet_dense.py --train_file=train9_11.json --valid_file=eval9_11.json --num_epochs=100
 python plot_losses.py --log_file=logs/2018-05-06-18-26-57_86993_log.json
 
 # Full evaluation.
