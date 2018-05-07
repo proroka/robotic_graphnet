@@ -47,6 +47,7 @@ class GraphNetBase(object):
     parser.add_argument('--log_directory', action='store', default='logs', help='Path where the logs are stored')
     parser.add_argument('--restore', action='store', default=None, help='Path where the logs are stored')
     parser.add_argument('--num_epochs', type=int, action='store', default=5, help='Number of epochs')
+    parser.add_argument('--num_timesteps', type=int, action='store', default=4, help='Number of timesteps')
     parser.add_argument('--restrict_data', type=int, action='store', default=0, help='Truncate data')
     parser.add_argument('--freeze_graph_model', action='store_true', help='Do not update the graph model')
 
@@ -65,6 +66,7 @@ class GraphNetBase(object):
     self._params['train_file'] = args.train_file
     self._params['valid_file'] = args.valid_file
     self._params['num_epochs'] = args.num_epochs
+    self._params['num_timesteps'] = args.num_timesteps
     self.set_arguments(self._args, self._params)
     with open(os.path.join(args.log_directory, '%s_params.json' % self._run_id), 'w') as f:
       json.dump(self._params, f)
