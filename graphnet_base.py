@@ -32,11 +32,11 @@ class GraphNetBase(object):
         'out_layer_dropout_keep_prob': 1.0,
         'hidden_size': 100,
         'num_timesteps': 4,    # Number of timesteps to unroll message passing.
-        'use_graph': True,     # Whether to even propagate messsages.
         'tie_fwd_bkwd': True,  # Combine forward and backward edges.
+        'local_regression': False,  # Regress on all nodes.
 
-        'train_file': 'train8_10.json',
-        'valid_file': 'eval8_10.json'
+        'train_file': 'train9_11.json',
+        'valid_file': 'eval9_11.json'
     }
 
   @classmethod
@@ -50,6 +50,7 @@ class GraphNetBase(object):
     parser.add_argument('--num_timesteps', type=int, action='store', default=4, help='Number of timesteps')
     parser.add_argument('--restrict_data', type=int, action='store', default=0, help='Truncate data')
     parser.add_argument('--freeze_graph_model', action='store_true', help='Do not update the graph model')
+    parser.add_argument('--local', action='store_true', help='Use a local regression at each node')
 
   def __init__(self, args):
     # Command-line arguments (using argparse).
@@ -67,6 +68,7 @@ class GraphNetBase(object):
     self._params['valid_file'] = args.valid_file
     self._params['num_epochs'] = args.num_epochs
     self._params['num_timesteps'] = args.num_timesteps
+    self._params['local_regression'] = args.local
     self.set_arguments(self._args, self._params)
     with open(os.path.join(args.log_directory, '%s_params.json' % self._run_id), 'w') as f:
       json.dump(self._params, f)
@@ -182,34 +184,43 @@ class GraphNetBase(object):
     self._placeholders['out_layer_dropout_keep_prob'] = tf.placeholder(tf.float32, [], name='out_layer_dropout_keep_prob')
 
     with tf.variable_scope('graph_model'):
-      self.prepare_specific_graph_model()
-      # This does the actual graph work.
-      if self._params['use_graph']:
-        self._ops['final_node_representations'] = self.compute_final_node_representations()
-      else:
-        self._ops['final_node_representations'] = tf.zeros_like(self._placeholders['initial_node_representation'])
+      self.prepare_model()
+      self._ops['final_node_representations'] = self.compute_final_node_representations()
 
     # Compute the squared loss and absolute difference for each prediction task.
     self._ops['losses'] = []
     for (internal_id, task_id) in enumerate(self._params['task_ids']):
       with tf.variable_scope('out_layer_task_%d' % task_id):
-        with tf.variable_scope('regression_gate'):
-          self._weights['regression_gate_task_%d' % task_id] = utils.MLP(
-              2 * self._params['hidden_size'], 1, [], self._placeholders['out_layer_dropout_keep_prob'])
-        with tf.variable_scope('regression'):
-          self._weights['regression_transform_task_%d' % task_id] = utils.MLP(
-              self._params['hidden_size'], 1, [], self._placeholders['out_layer_dropout_keep_prob'])
-        computed_values = self.gated_regression(self._ops['final_node_representations'],
-                                                self._weights['regression_gate_task_%d' % task_id],
-                                                self._weights['regression_transform_task_%d' % task_id])
-        diff = computed_values - self._placeholders['target_values'][internal_id, :]
         task_target_mask = self._placeholders['target_mask'][internal_id, :]
         task_target_num = tf.reduce_sum(task_target_mask) + utils.SMALL_NUMBER
-        diff = diff * task_target_mask  # Mask out unused values
-        self._ops['accuracy_task_%d' % task_id] = tf.reduce_sum(tf.abs(diff)) / task_target_num
+        if self._params['local_regression']:
+          with tf.variable_scope('local_regression'):
+            self._weights['local_regression_transform_task_%d' % task_id] = utils.MLP(
+                self._params['hidden_size'], 1, [], self._placeholders['out_layer_dropout_keep_prob'])
+          computed_values = self.local_regression(self._ops['final_node_representations'],
+                                                  self._weights['local_regression_transform_task_%d' % task_id])
+          # Computed values has shape [b, v].
+          diff = computed_values - tf.expand_dims(self._placeholders['target_values'][internal_id, :], axis=-1)
+          # TODO: Handle multiple tasks. Ignore this for now.
+          self._ops['accuracy_task_%d' % task_id] = tf.reduce_sum(tf.reduce_mean(tf.abs(diff), axis=1)) / task_target_num
+          task_loss = tf.reduce_sum(tf.reduce_mean(0.5 * tf.square(diff), axis=1)) / task_target_num
+        else:
+          with tf.variable_scope('regression_gate'):
+            self._weights['regression_gate_task_%d' % task_id] = utils.MLP(
+                2 * self._params['hidden_size'], 1, [], self._placeholders['out_layer_dropout_keep_prob'])
+          with tf.variable_scope('regression'):
+            self._weights['regression_transform_task_%d' % task_id] = utils.MLP(
+                self._params['hidden_size'], 1, [], self._placeholders['out_layer_dropout_keep_prob'])
+          computed_values = self.global_regression(self._ops['final_node_representations'],
+                                                   self._weights['regression_gate_task_%d' % task_id],
+                                                   self._weights['regression_transform_task_%d' % task_id])
+          diff = computed_values - self._placeholders['target_values'][internal_id, :]
+          diff = diff * task_target_mask  # Mask out unused values
+          self._ops['accuracy_task_%d' % task_id] = tf.reduce_sum(tf.abs(diff)) / task_target_num
+          task_loss = tf.reduce_sum(0.5 * tf.square(diff)) / task_target_num
+
         self._predictions = computed_values
         self._targets = self._placeholders['target_values'][internal_id, :]
-        task_loss = tf.reduce_sum(0.5 * tf.square(diff)) / task_target_num
         # Normalise loss to account for fewer task-specific examples in batch:
         task_loss = task_loss * (1.0 / (self._params['task_sample_ratios'].get(task_id) or 1.0))
         self._ops['losses'].append(task_loss)
@@ -236,15 +247,17 @@ class GraphNetBase(object):
       else:
         clipped_grads.append((grad, var))
     self._ops['train_step'] = optimizer.apply_gradients(clipped_grads)
-    # Initialize newly-introduced variables:
-    # self._session.run(tf.local_variables_initializer())
 
   @abc.abstractmethod
-  def gated_regression(self, last_h, regression_gate, regression_transform):
+  def global_regression(self, last_h, regression_gate, regression_transform):
     """Gated regression."""
 
   @abc.abstractmethod
-  def prepare_specific_graph_model(self):
+  def local_regression(self, last_h, regression_transform):
+    """Only used when doing local regression."""
+
+  @abc.abstractmethod
+  def prepare_model(self):
     """Graph model."""
 
   @abc.abstractmethod
@@ -366,12 +379,6 @@ class GraphNetBase(object):
     print('Restoring weights from file %s.' % path)
     with open(path, 'rb') as in_file:
       data_to_load = pickle.load(in_file)
-    # Assert that we got the same model configuration
-    assert len(self._params) == len(data_to_load['params'])
-    for (par, par_value) in self._params.items():
-      # Fine to have different task_ids:
-      if par not in ['task_ids', 'num_epochs', 'valid_file', 'train_file', 'batch_size']:
-        assert par_value == data_to_load['params'][par]
     variables_to_initialize = []
     with tf.name_scope('restore'):
       restore_ops = []

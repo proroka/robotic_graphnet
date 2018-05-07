@@ -43,7 +43,7 @@ class DenseGraphNet(graphnet_base.GraphNetBase):
     })
     return params
 
-  def prepare_specific_graph_model(self):
+  def prepare_model(self):
     h_dim = self.parameters['hidden_size']
     # inputs
     self.placeholders['graph_state_keep_prob'] = tf.placeholder(tf.float32, None, name='graph_state_keep_prob')
@@ -77,7 +77,7 @@ class DenseGraphNet(graphnet_base.GraphNetBase):
     with tf.variable_scope('gru_scope'):
       for i in range(self.parameters['num_timesteps']):
         if i > 0:
-          tf.get_variable_scope().reuse_variables()  # TODO: Should not be needed.
+          tf.get_variable_scope().reuse_variables()
         for edge_type in range(self.num_edge_types):
           m = tf.matmul(h, self.weights['edge_weights'][edge_type])  # [b*v, h]
           if self.parameters['use_edge_bias']:
@@ -92,7 +92,12 @@ class DenseGraphNet(graphnet_base.GraphNetBase):
       last_h = tf.reshape(h, [-1, v, h_dim])
     return last_h
 
-  def gated_regression(self, last_h, regression_gate, regression_transform):
+  def local_regression(self, last_h, regression_transform):
+    v = self.placeholders['num_vertices']
+    last_h = tf.reshape(last_h, [-1, self.parameters['hidden_size']])          # [b*v, h]
+    return tf.reshape(regression_transform(last_h), [-1, v])                   # [b, v]
+
+  def global_regression(self, last_h, regression_gate, regression_transform):
     # last_h: [b x v x h]
     gate_input = tf.concat([last_h, self.placeholders['initial_node_representation']], axis=2)  # [b, v, 2h]
     gate_input = tf.reshape(gate_input, [-1, 2 * self.parameters['hidden_size']])               # [b*v, 2h]
