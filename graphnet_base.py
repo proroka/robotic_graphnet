@@ -42,8 +42,8 @@ class GraphNetBase(object):
   @classmethod
   def add_arguments(cls, parser):
     parser.add_argument('--data_directory', action='store', default='data', help='Path where the json data files are stored')
-    parser.add_argument('--train_file', action='store', default='train8_10.json', help='Relative path from data directory')
-    parser.add_argument('--valid_file', action='store', default='eval8_10.json', help='Relative path from data directory')
+    parser.add_argument('--train_file', action='store', default='train9_11.json', help='Relative path from data directory')
+    parser.add_argument('--valid_file', action='store', default='eval9_11.json', help='Relative path from data directory')
     parser.add_argument('--log_directory', action='store', default='logs', help='Path where the logs are stored')
     parser.add_argument('--restore', action='store', default=None, help='Path where the logs are stored')
     parser.add_argument('--num_epochs', type=int, action='store', default=5, help='Number of epochs')

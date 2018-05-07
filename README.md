@@ -13,6 +13,6 @@ python plot_losses.py --log_file=logs/2018-05-06-21-33-41_90597_log.json
 python graphnet_dense.py --restore=logs/2018-05-06-21-33-41_90597_model_best.pickle --valid_file=eval12.json --num_epochs=0 --batch_size=100
 
 # Quick evaluation.
-python graphnet_dense.py --restore=logs/2018-05-06-21-33-41_90597_model_best.pickle --valid_file=eval9_11.json --evaluation_file=logs/eval.json --batch_size=12 --restrict_data=12
+python graphnet_dense.py --restore=logs/nodes9-11_T8_model.pickle --valid_file=eval8.json --evaluation_file=eval.json --batch_size=12 --restrict_data=12 --num_timesteps=8
 python plot_evaluation.py --evaluation_file=logs/eval.json
 ```

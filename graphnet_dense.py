@@ -202,25 +202,6 @@ class DenseGraphNet(graphnet_base.GraphNetBase):
       bucket_counters[bucket] += 1
       yield batch_feed_dict
 
-  def evaluate_one_batch(self, initial_node_representations, adjacency_matrices, node_masks=None):
-    num_vertices = len(initial_node_representations[0])
-    if node_masks is None:
-      node_masks = []
-      for r in initial_node_representations:
-        node_masks.append([1. for _ in r] + [0. for _ in range(num_vertices - len(r))])
-    batch_feed_dict = {
-        self.placeholders['initial_node_representation']: self._pad_annotations(initial_node_representations),
-        self.placeholders['num_graphs']: len(initial_node_representations),
-        self.placeholders['num_vertices']: len(initial_node_representations[0]),
-        self.placeholders['adjacency_matrix']: adjacency_matrices,
-        self.placeholders['node_mask']: node_masks,
-        self.placeholders['graph_state_keep_prob']: 1.0,
-        self.placeholders['out_layer_dropout_keep_prob']: 1.0,
-    }
-    fetch_list = self._output
-    result = self.session.run(fetch_list, feed_dict=batch_feed_dict)
-    return result
-
   def evaluation(self):
     outputs = self.eval(ops=[self.predictions, self.targets,
                              self.placeholders['adjacency_matrix'],
@@ -231,7 +212,7 @@ class DenseGraphNet(graphnet_base.GraphNetBase):
       output_data.append({
           'adjacency_matrix': np.squeeze(adj)[:n_nodes, :n_nodes].tolist(),
           'target': t.tolist(),
-          'prediction': p.tolist(),
+          'prediction': p[:, :n_nodes].tolist(),
       })
     with open(self.arguments.evaluation_file, 'w') as fp:
       json.dump(output_data, fp)
