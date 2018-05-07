@@ -3,7 +3,10 @@ from __future__ import division
 from __future__ import print_function
 
 import numpy as np
-import queue
+try:
+  import Queue as queue
+except ImportError:
+  import queue
 import tensorflow as tf
 import threading
 
